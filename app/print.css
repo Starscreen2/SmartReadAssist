@@ -1,0 +1,62 @@
+@media print {
+  /* Hide non-printable elements */
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Ensure the document takes full page */
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+
+  /* Optimize document content for printing */
+  .reader-content {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Improve typography for print */
+  .markdown-content {
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Ensure page breaks don't occur in the middle of elements */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  p,
+  blockquote,
+  ul,
+  ol,
+  dl,
+  table {
+    page-break-inside: avoid;
+  }
+
+  /* Add URLs after links */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 90%;
+    color: #333;
+  }
+
+  /* Don't show URLs for internal links */
+  a[href^="#"]:after {
+    content: "";
+  }
+}
+
