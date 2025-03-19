@@ -13,7 +13,8 @@ Smart Read Assistant is a web application that helps users read, manage, and int
 - **Distraction-Free Reading**: Clean, customizable reading interface with adjustable font sizes and themes
 - **AI Assistant**: Ask questions about your document and get contextual answers
 - **Text Highlighting**: Select text to get instant AI-powered explanations
-- **Document Tools**:
+
+## Document Tools**:
 
 - Generate summaries of varying lengths (brief, medium, detailed)
 - Rewrite documents in different styles (simple, academic, professional, concise)
