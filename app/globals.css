@@ -449,3 +449,96 @@ hr,
   @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
 }
 
+/* Mobile optimizations */
+@media (max-width: 767px) {
+  /* Increase touch targets for mobile only */
+  .mobile-touch-target,
+  [role="button"].mobile-touch-target,
+  a.mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve readability on small screens */
+  .prose {
+    font-size: 16px !important;
+  }
+
+  /* Adjust padding for mobile */
+  .p-8 {
+    padding: 1rem;
+  }
+
+  /* Ensure dialogs are properly sized */
+  .fixed.inset-0.z-50 > div {
+    width: 95% !important;
+    max-width: 95% !important;
+  }
+
+  /* Improve scrolling experience */
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent text from being too small */
+  .text-xs {
+    font-size: 0.75rem !important;
+  }
+
+  /* Ensure buttons have enough space */
+  .space-x-1 > * + * {
+    margin-left: 0.375rem !important;
+  }
+
+  /* Make dropdowns easier to tap */
+  [data-radix-popper-content-wrapper] {
+    --radix-dropdown-menu-content-transform-origin: var(--radix-popper-transform-origin);
+    transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+    min-width: 220px !important;
+  }
+
+  /* Improve panel positioning on mobile */
+  .summary-panel,
+  .rewrite-panel,
+  .bookmark-panel {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-height: 60vh !important;
+    border-radius: 1rem 1rem 0 0 !important;
+    z-index: 50 !important;
+  }
+}
+
+/* Fix button sizing for all devices */
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+/* Ensure buttons in the toolbar have proper sizing */
+.reader-content > div:first-child button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Add safe area insets for iOS devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .fixed.bottom-0,
+  .fixed.bottom-4 {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .h-screen {
+    height: calc(100vh - env(safe-area-inset-bottom));
+  }
+}
+
+/* Improve touch scrolling */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
