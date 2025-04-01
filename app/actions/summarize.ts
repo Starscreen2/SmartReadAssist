@@ -1,9 +1,13 @@
 "use server"
 
+import { getNextApiKey } from "@/lib/api-key-manager"
+import { incrementApiCounter } from "@/app/api/usage-stats/route"
+
 export async function summarizeText(
   text: string,
   title: string,
   length: "brief" | "medium" | "detailed" = "medium",
+  language = "English",
 ): Promise<string> {
   try {
     // Define length parameters
@@ -19,7 +23,13 @@ export async function summarizeText(
 Document Title: ${title}
 Document Content: ${text}
 
-Format the summary with clear sections, bullet points for key takeaways, and maintain the original document's main structure.`
+Format the summary with clear sections, bullet points for key takeaways, and maintain the original document's main structure.
+
+Please respond in ${language} language.
+`
+
+    // Get the next API key from our rotation
+    const apiKey = await getNextApiKey()
 
     // Call the Gemini API
     const response = await fetch(
@@ -28,7 +38,7 @@ Format the summary with clear sections, bullet points for key takeaways, and mai
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY || "",
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           contents: [
@@ -39,6 +49,9 @@ Format the summary with clear sections, bullet points for key takeaways, and mai
         }),
       },
     )
+
+    // Track API usage
+    incrementApiCounter()
 
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`)
@@ -64,7 +77,12 @@ Format the summary with clear sections, bullet points for key takeaways, and mai
   }
 }
 
-export async function summarizeSection(text: string, context: string, title: string): Promise<string> {
+export async function summarizeSection(
+  text: string,
+  context: string,
+  title: string,
+  language = "English",
+): Promise<string> {
   try {
     // Create the prompt for the Gemini API with emphasis on clarity and conciseness
     const prompt = `You are a document summarization assistant. Create an extremely concise and clear explanation of the following section from a document. Focus only on the provided section, but use the context to ensure accuracy.
@@ -73,7 +91,13 @@ Document Title: ${title}
 Document Context: ${context.substring(0, 500)}... (abbreviated)
 Section to Summarize: ${text}
 
-Provide a crystal-clear explanation in 2-3 short sentences maximum. Use simple language that anyone can understand immediately. Focus only on the most important point or meaning. Avoid unnecessary details, jargon, or complexity.`
+Provide a crystal-clear explanation in 2-3 short sentences maximum. Use simple language that anyone can understand immediately. Focus only on the most important point or meaning. Avoid unnecessary details, jargon, or complexity.
+
+Please respond in ${language} language.
+`
+
+    // Get the next API key from our rotation
+    const apiKey = await getNextApiKey()
 
     // Call the Gemini API
     const response = await fetch(
@@ -82,7 +106,7 @@ Provide a crystal-clear explanation in 2-3 short sentences maximum. Use simple l
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY || "",
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           contents: [
@@ -93,6 +117,9 @@ Provide a crystal-clear explanation in 2-3 short sentences maximum. Use simple l
         }),
       },
     )
+
+    // Track API usage
+    incrementApiCounter()
 
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`)
@@ -124,6 +151,7 @@ export async function summarizeLongDocument(
   title: string,
   length: "brief" | "medium" | "detailed" = "medium",
   onProgress?: (progress: number, stage: string) => void,
+  language = "English",
 ): Promise<string> {
   try {
     // Estimate if the document is too long for a single API call
@@ -134,7 +162,7 @@ export async function summarizeLongDocument(
     // If document is short enough, use the regular summarization
     if (estimatedTokens < TOKEN_LIMIT) {
       if (onProgress) onProgress(50, "Summarizing document")
-      const summary = await summarizeText(text, title, length)
+      const summary = await summarizeText(text, title, length, language)
       if (onProgress) onProgress(100, "Complete")
       return summary
     }
@@ -153,8 +181,10 @@ export async function summarizeLongDocument(
       }
 
       const sectionTitle = extractSectionTitle(sections[i]) || `Section ${i + 1}`
-      const summary = await summarizeText(sections[i], `${title} - ${sectionTitle}`, "brief")
-      sectionSummaries.push(`## ${sectionTitle}\n\n${summary}`)
+      const summary = await summarizeText(sections[i], `${title} - ${sectionTitle}`, "brief", language)
+      sectionSummaries.push(`## ${sectionTitle}
+
+${summary}`)
     }
 
     // 3. Combine section summaries
@@ -163,10 +193,18 @@ export async function summarizeLongDocument(
 
     // 4. Final pass to create a coherent summary of the desired length
     if (onProgress) onProgress(80, "Creating final summary")
-    const finalSummary = await summarizeText(combinedSummary, `${title} (Section Summaries)`, length)
+    const finalSummary = await summarizeText(combinedSummary, `${title} (Section Summaries)`, length, language)
 
     // 5. Format the final result with the section summaries
-    const result = `# Summary of ${title}\n\n${finalSummary}\n\n---\n\n# Detailed Section Summaries\n\n${combinedSummary}`
+    const result = `# Summary of ${title}
+
+${finalSummary}
+
+---
+
+# Detailed Section Summaries
+
+${combinedSummary}`
 
     if (onProgress) onProgress(100, "Complete")
     return result

@@ -1,5 +1,8 @@
 "use server"
 
+import { getNextApiKey } from "@/lib/api-key-manager"
+import { incrementApiCounter } from "@/app/api/usage-stats/route"
+
 type RewriteStyle = "simple" | "academic" | "professional" | "concise"
 
 export async function rewriteDocument(
@@ -7,6 +10,7 @@ export async function rewriteDocument(
   title: string,
   style: RewriteStyle = "simple",
   onProgress?: (progress: number, stage: string) => void,
+  language = "English",
 ): Promise<string> {
   try {
     // Estimate if the document is too long for a single API call
@@ -15,7 +19,7 @@ export async function rewriteDocument(
 
     // For long documents, use a chunking approach
     if (estimatedTokens > TOKEN_LIMIT) {
-      return await rewriteLongDocument(text, title, style, onProgress)
+      return await rewriteLongDocument(text, title, style, onProgress, language)
     }
 
     if (onProgress) onProgress(30, "Analyzing document")
@@ -52,9 +56,14 @@ Important instructions:
 8. Use # for headings, * for bullet points, and ** for bold text
 9. ${style !== "concise" ? "CRITICAL: The rewritten document MUST match the original document in length. Count the approximate number of words in the original and ensure your rewritten version has a similar word count. Expand on explanations if needed to maintain the original length." : "Aim to reduce the length by 30-40% while preserving key information."}
 
-Return the complete rewritten document in Markdown format.`
+Return the complete rewritten document in Markdown format.
+
+Please respond in ${language} language.`
 
     if (onProgress) onProgress(50, "Rewriting document")
+
+    // Get the next API key from our rotation
+    const apiKey = await getNextApiKey()
 
     // Call the Gemini API
     const response = await fetch(
@@ -63,7 +72,7 @@ Return the complete rewritten document in Markdown format.`
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY || "",
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           contents: [
@@ -74,6 +83,9 @@ Return the complete rewritten document in Markdown format.`
         }),
       },
     )
+
+    // Track API usage
+    incrementApiCounter()
 
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`)
@@ -110,12 +122,13 @@ Return the complete rewritten document in Markdown format.`
   }
 }
 
-// Rest of the file remains the same...
+// Update the rewriteLongDocument function to use the language parameter
 async function rewriteLongDocument(
   text: string,
   title: string,
   style: RewriteStyle,
   onProgress?: (progress: number, stage: string) => void,
+  language = "English",
 ): Promise<string> {
   try {
     // Split the document into manageable sections
@@ -131,7 +144,13 @@ async function rewriteLongDocument(
       }
 
       const sectionTitle = extractSectionTitle(sections[i]) || `Section ${i + 1}`
-      const rewrittenSection = await rewriteDocument(sections[i], `${title} - ${sectionTitle}`, style)
+      const rewrittenSection = await rewriteDocument(
+        sections[i],
+        `${title} - ${sectionTitle}`,
+        style,
+        undefined,
+        language,
+      )
       rewrittenSections.push(rewrittenSection)
     }
 

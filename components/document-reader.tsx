@@ -15,12 +15,15 @@ import {
   BookmarkPlus,
   BookmarkIcon as BookmarkList,
   Pencil,
+  Globe,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { RippleButton } from "@/components/ui/ripple-button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { MarkdownRenderer } from "./markdown-renderer"
+import { SimpleMarkdownRenderer } from "./simple-markdown-renderer"
 import { SummaryPanel } from "./summary-panel"
 import { RewriteDocumentPanel } from "./rewrite-document-panel"
 import { BookmarkPanel } from "./bookmark-panel"
@@ -33,6 +36,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/context/language-context"
+import { Badge } from "@/components/ui/badge"
 
 export function DocumentReader() {
   const { currentDocument, setDocuments } = useDocuments()
@@ -44,7 +49,7 @@ export function DocumentReader() {
   const [isLoading, setIsLoading] = useState(false)
   const [showToolbar, setShowToolbar] = useState(true)
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false)
-  const [rewritePanelOpen, setRewritePanelOpen] = useState(false)
+  const [rewritePanelOpen, setRewriteDocumentPanelOpen] = useState(false)
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false)
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false)
   const [bookmarkName, setBookmarkName] = useState("")
@@ -59,6 +64,9 @@ export function DocumentReader() {
   // Add state for bookmark notification
   const [showBookmarkNotification, setShowBookmarkNotification] = useState(false)
   const [notificationMessage, setNotificationMessage] = useState("")
+
+  const { language, setLanguage, languages } = useLanguage()
+  const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false)
 
   // Debug log to check document changes
   useEffect(() => {
@@ -114,12 +122,12 @@ export function DocumentReader() {
 
   const toggleSummaryPanel = () => {
     setSummaryPanelOpen(!summaryPanelOpen)
-    if (rewritePanelOpen) setRewritePanelOpen(false)
+    if (rewritePanelOpen) setRewriteDocumentPanelOpen(false)
     if (bookmarkPanelOpen) setBookmarkPanelOpen(false)
   }
 
   const toggleRewritePanel = () => {
-    setRewritePanelOpen(!rewritePanelOpen)
+    setRewriteDocumentPanelOpen(!rewritePanelOpen)
     if (summaryPanelOpen) setSummaryPanelOpen(false)
     if (bookmarkPanelOpen) setBookmarkPanelOpen(false)
   }
@@ -127,7 +135,7 @@ export function DocumentReader() {
   const toggleBookmarkPanel = () => {
     setBookmarkPanelOpen(!bookmarkPanelOpen)
     if (summaryPanelOpen) setSummaryPanelOpen(false)
-    if (rewritePanelOpen) setRewritePanelOpen(false)
+    if (rewritePanelOpen) setRewriteDocumentPanelOpen(false)
   }
 
   // Update the handleAddBookmark function to show the bookmark notification
@@ -499,6 +507,76 @@ export function DocumentReader() {
               </DialogContent>
             </Dialog>
 
+            {/* Language Selector - Completely restructured */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => setLanguagePopoverOpen(!languagePopoverOpen)}
+                  >
+                    <Globe className="h-4 w-4" />
+                    <span className="text-xs hidden sm:inline-block">{language.nativeName}</span>
+                    <Badge variant="outline" className="ml-1 h-5 px-1.5 text-[10px] hidden sm:flex">
+                      {language.code}
+                    </Badge>
+                    <ChevronsUpDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="center">
+                  <p>System Language: {language.name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Separate popover for language selection */}
+            {languagePopoverOpen && (
+              <div className="fixed inset-0 z-50" onClick={() => setLanguagePopoverOpen(false)}>
+                <div
+                  className="absolute right-4 top-16 w-[200px] bg-popover border rounded-md shadow-md p-0 z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="Search language..."
+                      className="h-8"
+                      onChange={(e) => {
+                        // Add language search functionality
+                        const searchTerm = e.target.value.toLowerCase()
+                        // You would filter languages here based on the search term
+                      }}
+                    />
+                  </div>
+                  <div className="max-h-[300px] overflow-auto py-1">
+                    {languages.map((lang) => (
+                      <div
+                        key={lang.code}
+                        className="flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-accent"
+                        onClick={() => {
+                          setLanguage(lang)
+                          setLanguagePopoverOpen(false)
+                          toast({
+                            title: "System language changed",
+                            description: `All AI responses will now be in ${lang.name}`,
+                          })
+                        }}
+                      >
+                        <Check
+                          className={cn("mr-2 h-4 w-4", language.code === lang.code ? "opacity-100" : "opacity-0")}
+                        />
+                        <span>{lang.nativeName}</span>
+                        <Badge variant="outline" className="ml-auto text-[10px]">
+                          {lang.code}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -703,7 +781,7 @@ export function DocumentReader() {
                   </Button>
                 </div>
               ) : (
-                <MarkdownRenderer
+                <SimpleMarkdownRenderer
                   content={currentDocument.content}
                   fontSize={fontSize}
                   bookmarks={getDocumentBookmarks(currentDocument.id)}
@@ -767,7 +845,7 @@ export function DocumentReader() {
       <SummaryPanel isOpen={summaryPanelOpen} onClose={() => setSummaryPanelOpen(false)} />
 
       {/* Rewrite Document Panel */}
-      <RewriteDocumentPanel isOpen={rewritePanelOpen} onClose={() => setRewritePanelOpen(false)} />
+      <RewriteDocumentPanel isOpen={rewritePanelOpen} onClose={() => setRewriteDocumentPanelOpen(false)} />
 
       {/* Bookmark Panel */}
       <BookmarkPanel

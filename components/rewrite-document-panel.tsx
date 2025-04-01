@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { rewriteDocument } from "@/app/actions/rewrite-document"
 import { useDocuments } from "@/context/document-context"
 import { RewrittenContent } from "./rewritten-content"
+import { useLanguage } from "@/context/language-context"
 
 interface RewriteDocumentPanelProps {
   isOpen: boolean
@@ -27,6 +28,7 @@ export function RewriteDocumentPanel({ isOpen, onClose }: RewriteDocumentPanelPr
   const [progress, setProgress] = useState(0)
   const [stage, setStage] = useState("")
   const { toast } = useToast()
+  const { language } = useLanguage()
 
   useEffect(() => {
     // Reset rewritten text when document changes
@@ -68,6 +70,7 @@ export function RewriteDocumentPanel({ isOpen, onClose }: RewriteDocumentPanelPr
           setProgress(progressValue)
           setStage(stageText)
         },
+        language.name,
       )
 
       // Clean up the rewritten text before setting it

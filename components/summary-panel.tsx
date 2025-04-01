@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { MarkdownRenderer } from "./markdown-renderer"
+import { SimpleMarkdownRenderer } from "./simple-markdown-renderer"
 import { summarizeText, summarizeLongDocument } from "@/app/actions/summarize"
 import { useDocuments } from "@/context/document-context"
+import { useLanguage } from "@/context/language-context"
 
 interface SummaryPanelProps {
   isOpen: boolean
@@ -26,6 +27,7 @@ export function SummaryPanel({ isOpen, onClose }: SummaryPanelProps) {
   const [progress, setProgress] = useState(0)
   const [stage, setStage] = useState("")
   const { toast } = useToast()
+  const { language } = useLanguage()
 
   useEffect(() => {
     // Reset summary when document changes
@@ -52,7 +54,7 @@ export function SummaryPanel({ isOpen, onClose }: SummaryPanelProps) {
         // For shorter documents, use the simple approach
         setStage("Summarizing document")
         setProgress(30)
-        const result = await summarizeText(currentDocument.content, currentDocument.name, summaryLength)
+        const result = await summarizeText(currentDocument.content, currentDocument.name, summaryLength, language.name)
         setProgress(100)
         setSummary(result)
       } else {
@@ -66,6 +68,7 @@ export function SummaryPanel({ isOpen, onClose }: SummaryPanelProps) {
             setProgress(progressValue)
             setStage(stageText)
           },
+          language.name,
         )
         setSummary(result)
       }
@@ -102,7 +105,9 @@ export function SummaryPanel({ isOpen, onClose }: SummaryPanelProps) {
     const newDoc = {
       id: Date.now().toString(),
       name: `Summary of ${currentDocument.name}`,
-      content: `# Summary of ${currentDocument.name}\n\n${summary}`,
+      content: `# Summary of ${currentDocument.name}
+
+${summary}`,
       lastModified: new Date(),
     }
 
@@ -208,7 +213,7 @@ export function SummaryPanel({ isOpen, onClose }: SummaryPanelProps) {
             </div>
           ) : summary ? (
             <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownRenderer content={summary} fontSize={14} />
+              <SimpleMarkdownRenderer content={summary} fontSize={14} />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center">

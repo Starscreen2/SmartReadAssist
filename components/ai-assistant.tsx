@@ -3,14 +3,13 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
-import { X, Maximize2, Minimize2, Send, Sparkles, MessageSquare, Trash2, History, MoreVertical } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { askGemini } from "@/app/actions/gemini"
 import { useDocuments } from "@/context/document-context"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { MarkdownRenderer } from "./markdown-renderer"
+// Add import for the language context
+import { useLanguage } from "@/context/language-context"
+
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +17,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { History, Maximize2, MessageSquare, Minimize2, MoreVertical, Send, Sparkles, Trash2, X } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { SimpleMarkdownRenderer } from "@/components/simple-markdown-renderer"
 
 type Message = {
   role: "user" | "assistant"
@@ -27,6 +30,7 @@ type Message = {
 
 export function AIAssistant() {
   const { currentDocument } = useDocuments()
+  const { language } = useLanguage()
   const [isOpen, setIsOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
@@ -47,6 +51,10 @@ export function AIAssistant() {
   const [savedChats, setSavedChats] = useState<{ id: string; title: string; messages: Message[] }[]>([])
   const [showSavedChatsDialog, setShowSavedChatsDialog] = useState(false)
   const [confirmClearDialog, setConfirmClearDialog] = useState(false)
+  const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false)
+
+  // Add a state to track the current language for the highlight explanation
+  const [currentHighlightLanguage, setCurrentHighlightLanguage] = useState(language)
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -54,21 +62,21 @@ export function AIAssistant() {
     }
   }, [messages])
 
-  // Update initial message when document changes
+  // Update initial message when document or language changes
   useEffect(() => {
     if (currentDocument) {
       // Reset visible content when document changes
       setVisibleContent("")
 
-      // Update the welcome message
+      // Update the welcome message with the current language
       setMessages([
         {
           role: "assistant",
-          content: `Hi! I'm your reading assistant. I'm currently aware of your document "${currentDocument.name}". Ask me anything about it or highlight text for an explanation.`,
+          content: `Hi! I'm your reading assistant. I'm currently aware of your document "${currentDocument.name}". Ask me anything about it or highlight text for an explanation. I'll respond in ${language.name}.`,
         },
       ])
     }
-  }, [currentDocument])
+  }, [currentDocument, language])
 
   // Add a new effect to update visible content when document changes
   useEffect(() => {
@@ -135,6 +143,25 @@ export function AIAssistant() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [currentDocument])
 
+  // Add an effect to listen for language changes
+  useEffect(() => {
+    // Update the current highlight language when the system language changes
+    setCurrentHighlightLanguage(language)
+
+    // Listen for language change events
+    const handleLanguageChange = (event: Event) => {
+      const customEvent = event as CustomEvent
+      if (customEvent.detail) {
+        setCurrentHighlightLanguage(customEvent.detail)
+      }
+    }
+
+    window.addEventListener("languageChanged", handleLanguageChange)
+    return () => {
+      window.removeEventListener("languageChanged", handleLanguageChange)
+    }
+  }, [language])
+
   // Load saved chats from localStorage on initial render
   useEffect(() => {
     const loadSavedChats = () => {
@@ -159,6 +186,43 @@ export function AIAssistant() {
       console.error("Failed to save chats:", error)
     }
   }, [savedChats])
+
+  // Add a new useEffect to handle window resizing
+  // Add this after the other useEffect hooks:
+
+  // Add window resize handler to keep popup in view
+  useEffect(() => {
+    if (!highlightExplanation) return
+
+    const handleResize = () => {
+      // Recalculate position to ensure popup stays in view
+      if (highlightText) {
+        const selection = window.getSelection()
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0)
+          const rect = range.getBoundingClientRect()
+
+          // Use the same positioning logic as in explainHighlightedText
+          const viewportWidth = window.innerWidth
+          const viewportHeight = window.innerHeight
+
+          const xPos = Math.min(Math.max(rect.left + rect.width / 2, 200), viewportWidth - 200)
+
+          const yPos = rect.bottom + window.scrollY
+          const isTooLow = rect.bottom + 300 > viewportHeight
+          const finalYPos = isTooLow ? rect.top + window.scrollY - 10 : yPos
+
+          setHighlightPosition({
+            x: xPos,
+            y: finalYPos,
+          })
+        }
+      }
+    }
+
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [highlightExplanation, highlightText])
 
   const handleClearChat = () => {
     setConfirmClearDialog(true)
@@ -224,6 +288,7 @@ export function AIAssistant() {
     setSavedChats((prev) => prev.filter((chat) => chat.id !== chatId))
   }
 
+  // Modify the handleSend function to include language instructions in the prompt
   const handleSend = async () => {
     if (!input.trim()) return
 
@@ -233,17 +298,24 @@ export function AIAssistant() {
     setIsLoading(true)
 
     try {
-      // Include only visible content as context
+      // Include language instruction in the prompt
       let contextPrompt = input
       if (currentDocument && visibleContent) {
-        // Create a prompt that includes only the visible content
+        // Create a prompt that includes only the visible content and language instruction
         contextPrompt = `
 I'm reading a document titled "${currentDocument.name}" (ID: ${currentDocument.id}). 
 Here's my question: ${input}
 
 For context, here's the part of the document I'm currently looking at:
 ${visibleContent}
+
+Please respond in ${language.name} (${language.code}).
 `
+      } else {
+        // If no document context, still include language instruction
+        contextPrompt = `${input}
+
+Please respond in ${language.name} (${language.code}).`
       }
 
       const response = await askGemini(contextPrompt)
@@ -300,69 +372,94 @@ ${visibleContent}
     }
   }
 
+  // Helper function to normalize text for better matching
+  const normalizeText = (text: string): string => {
+    return text
+      .replace(/\s+/g, " ") // Replace multiple whitespace with single space
+      .replace(/[\n\r]+/g, " ") // Replace newlines with spaces
+      .trim() // Remove leading/trailing whitespace
+  }
+
   // Enhanced function to get context around the highlighted text
   const getTextWithContext = (selectedText: string): { text: string; context: string } => {
+    console.log("DEBUG - getTextWithContext called with text:", selectedText.substring(0, 50) + "...")
+
     if (!currentDocument) {
+      console.log("DEBUG - No current document found")
       return { text: selectedText, context: "" }
     }
+
+    console.log("DEBUG - Current document name:", currentDocument.name)
 
     const fullContent = currentDocument.content
-    const selectedIndex = fullContent.indexOf(selectedText)
+
+    // Normalize both the selected text and document content for better matching
+    const normalizedSelectedText = normalizeText(selectedText)
+    const normalizedContent = normalizeText(fullContent)
+
+    // Try to find the selected text in the normalized content
+    const selectedIndex = normalizedContent.indexOf(normalizedSelectedText)
+    console.log("DEBUG - Selected index in normalized document:", selectedIndex)
 
     if (selectedIndex === -1) {
-      return { text: selectedText, context: "" }
+      console.log("DEBUG - Selected text not found in normalized document content!")
+
+      // If we can't find the exact text, try to use the visible content
+      if (visibleContent && visibleContent.includes(selectedText)) {
+        console.log("DEBUG - Found selected text in visible content")
+
+        // Get approximate position in visible content
+        const visibleIndex = visibleContent.indexOf(selectedText)
+        const beforeContext = visibleContent.substring(Math.max(0, visibleIndex - 2000), visibleIndex)
+        const afterContext = visibleContent.substring(
+          visibleIndex + selectedText.length,
+          Math.min(visibleContent.length, visibleIndex + selectedText.length + 2000),
+        )
+
+        const fullContext =
+          beforeContext + "[HIGHLIGHTED TEXT START]" + selectedText + "[HIGHLIGHTED TEXT END]" + afterContext
+        return { text: selectedText, context: fullContext }
+      }
+
+      // Last resort: just use the selected text with minimal context
+      return {
+        text: selectedText,
+        context: `[HIGHLIGHTED TEXT START]${selectedText}[HIGHLIGHTED TEXT END]`,
+      }
     }
 
-    // Get context before and after the highlighted text
-    // Try to get complete paragraphs or sentences for better context
-    const CONTEXT_CHARS = 500 // Characters of context to grab
+    // We found the text in the document, so get proper context around it
+    // Get approximately 2000 characters before and 2000 after
+    const CONTEXT_CHARS = 2000
 
-    // Get context before the selection
-    let startIndex = Math.max(0, selectedIndex - CONTEXT_CHARS)
-    // Try to start at a paragraph or sentence boundary
-    const beforeText = fullContent.substring(startIndex, selectedIndex)
-    const paragraphStart = beforeText.lastIndexOf("\n\n")
-    const sentenceStart = Math.max(
-      beforeText.lastIndexOf(". "),
-      beforeText.lastIndexOf("! "),
-      beforeText.lastIndexOf("? "),
+    // Find the actual position in the original content (not normalized)
+    // This is an approximation since normalization changes character positions
+    const approximateStartIndex = Math.max(0, selectedIndex - CONTEXT_CHARS)
+    const approximateEndIndex = Math.min(
+      normalizedContent.length,
+      selectedIndex + normalizedSelectedText.length + CONTEXT_CHARS,
     )
 
-    if (paragraphStart !== -1) {
-      startIndex = startIndex + paragraphStart + 2 // +2 to skip the newlines
-    } else if (sentenceStart !== -1) {
-      startIndex = startIndex + sentenceStart + 2 // +2 to skip the period and space
-    }
-
-    // Get context after the selection
-    let endIndex = Math.min(fullContent.length, selectedIndex + selectedText.length + CONTEXT_CHARS)
-    // Try to end at a paragraph or sentence boundary
-    const afterText = fullContent.substring(selectedIndex + selectedText.length, endIndex)
-    const paragraphEnd = afterText.indexOf("\n\n")
-    const sentenceEnd = Math.min(
-      afterText.indexOf(". ") !== -1 ? afterText.indexOf(". ") : Number.POSITIVE_INFINITY,
-      afterText.indexOf("! ") !== -1 ? afterText.indexOf("! ") : Number.POSITIVE_INFINITY,
-      afterText.indexOf("? ") !== -1 ? afterText.indexOf("? ") : Number.POSITIVE_INFINITY,
+    // Extract context from the original content
+    const beforeContext = fullContent.substring(Math.max(0, approximateStartIndex), fullContent.indexOf(selectedText))
+    const afterContext = fullContent.substring(
+      fullContent.indexOf(selectedText) + selectedText.length,
+      Math.min(fullContent.length, approximateEndIndex),
     )
 
-    if (paragraphEnd !== -1) {
-      endIndex = selectedIndex + selectedText.length + paragraphEnd
-    } else if (sentenceEnd !== Number.POSITIVE_INFINITY) {
-      endIndex = selectedIndex + selectedText.length + sentenceEnd + 1 // +1 to include the period
-    }
+    // Create the final context with markers
+    const finalContext =
+      beforeContext + "[HIGHLIGHTED TEXT START]" + selectedText + "[HIGHLIGHTED TEXT END]" + afterContext
 
-    // Get the full context including the selected text
-    const fullContext = fullContent.substring(startIndex, endIndex)
-
-    // Mark the selected text within the context for the AI
-    const beforeContext = fullContent.substring(startIndex, selectedIndex)
-    const afterContext = fullContent.substring(selectedIndex + selectedText.length, endIndex)
-
-    const markedContext = `${beforeContext}[HIGHLIGHTED TEXT START]${selectedText}[HIGHLIGHTED TEXT END]${afterContext}`
+    console.log("DEBUG - Context extraction:")
+    console.log("Selected text length:", selectedText.length)
+    console.log("Before context length:", beforeContext.length)
+    console.log("After context length:", afterContext.length)
+    console.log("Total context length:", finalContext.length)
 
     return {
       text: selectedText,
-      context: markedContext,
+      context: finalContext,
     }
   }
 
@@ -375,7 +472,13 @@ ${visibleContent}
     const words = text.split(" ")
     if (words.length <= 3) return text
 
-    // For longer selections, try to identify a key term
+    // For longer selections, try to identify a key term or use the first few words
+    if (text.length > 500) {
+      // For very long text, use a more general title
+      const firstFewWords = words.slice(0, 3).join(" ")
+      return `${firstFewWords}...`
+    }
+
     // Look for capitalized words which might be terms/concepts
     const capitalizedWords = words.filter(
       (word) => word.length > 1 && word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase(),
@@ -397,58 +500,118 @@ ${visibleContent}
     return words.slice(0, Math.min(3, words.length)).join(" ")
   }
 
-  // This function would be called when text is highlighted
+  // Update the explainHighlightedText function to use the current language
   const explainHighlightedText = async (text: string) => {
     if (!text.trim() || text.length < 5) return // Ignore very short selections
+    if (!currentDocument) return // Don't process if no document is selected
+
+    console.log("DEBUG - explainHighlightedText called with text length:", text.length)
+    console.log("DEBUG - First 50 chars of selected text:", text.substring(0, 50))
+    console.log("DEBUG - Using language:", language.name, language.code)
+
+    // Verify the selection is within the current document's content area
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    // Check if the selection is within the document content area
+    const range = selection.getRangeAt(0)
+    const contentElement = document.querySelector(".reader-content .prose")
+    if (!contentElement || !contentElement.contains(range.commonAncestorContainer)) {
+      console.log("DEBUG - Selection is outside the current document content area")
+      return
+    }
 
     setIsLoading(true)
     setHighlightText(text)
 
     try {
-      const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
         const rect = range.getBoundingClientRect()
+
+        // Calculate a better position that ensures visibility
+        const viewportWidth = window.innerWidth
+        const viewportHeight = window.innerHeight
+
+        // Position horizontally - aim for center of selection but keep in viewport
+        // Ensure at least 200px from either edge to accommodate the popup width
+        const xPos = Math.min(Math.max(rect.left + rect.width / 2, 200), viewportWidth - 200)
+
+        // Position vertically - place below selection but ensure it's visible
+        // If too close to bottom, position above selection
+        const yPos = rect.bottom + window.scrollY
+        const isTooLow = rect.bottom + 300 > viewportHeight
+        const finalYPos = isTooLow ? rect.top + window.scrollY - 10 : yPos
+
         setHighlightPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom + window.scrollY,
+          x: xPos,
+          y: finalYPos,
         })
+
+        // Log more details about the selection
+        console.log("DEBUG - Selection details:")
+        console.log("- Selection type:", selection.type)
+        console.log("- Selection range count:", selection.rangeCount)
+        console.log("- Selection as string:", selection.toString().substring(0, 50) + "...")
+        console.log("- Viewport dimensions:", viewportWidth, "x", viewportHeight)
+        console.log("- Selection rect:", rect.left, rect.top, rect.right, rect.bottom)
+        console.log("- Calculated position:", xPos, finalYPos)
       }
 
       // Get the highlighted text with surrounding context
       const { text: selectedText, context: textWithContext } = getTextWithContext(text)
 
+      // Add these debug logs
+      console.log("DEBUG - Prompt construction:")
+      console.log("textWithContext length:", textWithContext.length)
+
       // Extract the term to be explained
       const termToExplain = extractTermToExplain(selectedText)
 
       // Include document title for additional context
-      const documentTitle = currentDocument ? currentDocument.name : "Untitled Document"
+      const documentTitle = currentDocument.name
+
+      // Store the current language to ensure consistency even if language changes during API call
+      const currentLang = language
 
       // Create a prompt that focuses on explaining the highlighted text but uses the context
-      // Updated to emphasize conciseness and clarity, and to include proper Markdown formatting
+      // Add language instruction with strong emphasis
       const prompt = `
-You are an expert reading assistant. Explain the highlighted portion of text below in the simplest, clearest way possible.
+You are an expert reading assistant. Explain the highlighted portion of text below clearly and concisely.
 Focus ONLY on explaining the text between [HIGHLIGHTED TEXT START] and [HIGHLIGHTED TEXT END] markers.
-Use the surrounding context to inform your explanation, but don't explain the context itself.
+Use the surrounding context to inform your explanation and provide a more accurate understanding.
 
 Document Title: ${documentTitle}
 Text with Context:
 ${textWithContext}
 
-Provide an extremely concise explanation (maximum 2-3 short sentences) of ONLY the highlighted text, making sure to:
+${
+  selectedText.length > 500
+    ? `This is a longer text selection. Provide a concise summary (3-5 sentences) that captures the main points, key arguments, and significance of ONLY the highlighted text.`
+    : `Provide an extremely concise explanation (maximum 2-3 short sentences) of ONLY the highlighted text, making sure to:
 1. Use simple, everyday language - avoid jargon unless absolutely necessary
 2. Focus on the core meaning or main point only
 3. Be direct and straightforward - no unnecessary words
-4. If technical terms must be used, briefly define them
+4. If technical terms must be used, briefly define them`
+}
 
 Format your response with the term "${termToExplain}" in bold at the beginning, like this:
 **${termToExplain}**: Your explanation here...
 
 Your explanation should be immediately understandable to someone with no background knowledge.
+
+IMPORTANT: You MUST respond in ${currentLang.name} (${currentLang.code}). The entire explanation must be in ${currentLang.name} only.
 `
+
+      // Add this debug log
+      console.log("DEBUG - Final prompt length:", prompt.length)
+      console.log("DEBUG - Language instruction:", `respond in ${currentLang.name} (${currentLang.code})`)
 
       const response = await askGemini(prompt)
       setHighlightExplanation(response)
+
+      // Save the language used for this explanation
+      setCurrentHighlightLanguage(currentLang)
     } catch (error) {
       console.error("Error explaining text:", error)
       setHighlightExplanation("Sorry, I couldn't explain that text. Please try again.")
@@ -460,10 +623,22 @@ Your explanation should be immediately understandable to someone with no backgro
   // Listen for text selection events
   useEffect(() => {
     const handleSelection = () => {
+      // Only process selection if we have a current document
+      if (!currentDocument) return
+
       const selection = window.getSelection()
-      if (selection && selection.toString().trim().length > 0) {
-        // Only show explanation when user has completed selection
-        // In a real app, you might want to add a small delay or a button to trigger this
+      if (!selection || selection.rangeCount === 0) return
+
+      // Check if the selection is within the document content area
+      const range = selection.getRangeAt(0)
+      const contentElement = document.querySelector(".reader-content .prose")
+
+      if (
+        contentElement &&
+        contentElement.contains(range.commonAncestorContainer) &&
+        selection.toString().trim().length > 0
+      ) {
+        // Only show explanation when user has completed selection within the document
         explainHighlightedText(selection.toString())
       } else {
         setHighlightExplanation(null)
@@ -475,7 +650,7 @@ Your explanation should be immediately understandable to someone with no backgro
     return () => {
       document.removeEventListener("mouseup", handleSelection)
     }
-  }, [currentDocument])
+  }, [currentDocument, language]) // Add language as a dependency to re-register the event listener when language changes
 
   const addHighlightToChat = () => {
     if (!highlightText || !highlightExplanation) return
@@ -571,7 +746,7 @@ Your explanation should be immediately understandable to someone with no backgro
                   )}
                 >
                   {message.role === "assistant" ? (
-                    <MarkdownRenderer content={message.content} fontSize={14} />
+                    <SimpleMarkdownRenderer content={message.content} fontSize={14} />
                   ) : (
                     message.content
                   )}
@@ -599,7 +774,7 @@ Your explanation should be immediately understandable to someone with no backgro
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about your document..."
+                placeholder={`Ask about your document (in ${language.name})...`}
                 className="min-h-10 resize-none"
               />
               <Button onClick={handleSend} disabled={isLoading || !input.trim()} className="shrink-0">
@@ -615,15 +790,24 @@ Your explanation should be immediately understandable to someone with no backgro
         <div
           className="fixed z-50 bg-background border rounded-lg shadow-lg p-4 max-w-md fade-in"
           style={{
-            left: `${highlightPosition.x}px`,
-            top: `${highlightPosition.y + 10}px`,
+            // Calculate position to ensure popup is visible
+            left: Math.min(
+              Math.max(highlightPosition.x, 200), // Ensure at least 200px from left edge
+              window.innerWidth - 220, // Ensure at least 220px from right edge
+            ),
+            top: Math.min(
+              highlightPosition.y + 10,
+              window.innerHeight - 200, // Ensure popup doesn't go too far down
+            ),
             transform: "translateX(-50%)",
+            maxHeight: "calc(100vh - 100px)", // Limit max height
+            overflowY: "auto", // Add scrolling if content is too tall
           }}
         >
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center">
               <Sparkles className="h-3.5 w-3.5 mr-1.5 text-primary" />
-              <h4 className="font-medium text-sm">AI Explanation</h4>
+              <h4 className="font-medium text-sm">AI Explanation ({currentHighlightLanguage.name})</h4>
             </div>
             <div className="flex space-x-1">
               <Button
@@ -641,7 +825,7 @@ Your explanation should be immediately understandable to someone with no backgro
             </div>
           </div>
           <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-            <MarkdownRenderer content={highlightExplanation} fontSize={14} />
+            <SimpleMarkdownRenderer content={highlightExplanation} fontSize={14} />
           </div>
         </div>
       )}
