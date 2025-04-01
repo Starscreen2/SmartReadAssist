@@ -56,6 +56,19 @@ export function AIAssistant() {
   // Add a state to track the current language for the highlight explanation
   const [currentHighlightLanguage, setCurrentHighlightLanguage] = useState(language)
 
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Detect mobile devices
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
@@ -394,8 +407,15 @@ Please respond in ${language.name} (${language.code}).`
     const fullContent = currentDocument.content
 
     // Normalize both the selected text and document content for better matching
-    const normalizedSelectedText = normalizeText(selectedText)
-    const normalizedContent = normalizeText(fullContent)
+    // Use a more lenient normalization that preserves more of the original text structure
+    const normalizeTextLeniently = (text: string): string => {
+      return text
+        .replace(/\s+/g, " ") // Replace multiple whitespace with single space
+        .trim() // Remove leading/trailing whitespace
+    }
+
+    const normalizedSelectedText = normalizeTextLeniently(selectedText)
+    const normalizedContent = normalizeTextLeniently(fullContent)
 
     // Try to find the selected text in the normalized content
     const selectedIndex = normalizedContent.indexOf(normalizedSelectedText)
@@ -441,10 +461,25 @@ Please respond in ${language.name} (${language.code}).`
     )
 
     // Extract context from the original content
-    const beforeContext = fullContent.substring(Math.max(0, approximateStartIndex), fullContent.indexOf(selectedText))
+    // Use a more robust approach to find the selected text in the original content
+    let startPos = 0
+    let endPos = fullContent.length
+
+    // Try to find a more precise location of the selected text in the original content
+    const exactMatch = fullContent.indexOf(selectedText)
+    if (exactMatch !== -1) {
+      startPos = Math.max(0, exactMatch - CONTEXT_CHARS)
+      endPos = Math.min(fullContent.length, exactMatch + selectedText.length + CONTEXT_CHARS)
+    } else {
+      // Fallback to approximate position
+      startPos = approximateStartIndex
+      endPos = approximateEndIndex
+    }
+
+    const beforeContext = fullContent.substring(startPos, fullContent.indexOf(selectedText, startPos))
     const afterContext = fullContent.substring(
-      fullContent.indexOf(selectedText) + selectedText.length,
-      Math.min(fullContent.length, approximateEndIndex),
+      fullContent.indexOf(selectedText, startPos) + selectedText.length,
+      endPos,
     )
 
     // Create the final context with markers
@@ -521,8 +556,15 @@ Please respond in ${language.name} (${language.code}).`
       return
     }
 
+    // Get the full text content of the selection
+    const fullSelectedText = selection.toString().trim()
+
+    // If the provided text doesn't match the current selection, use the current selection
+    // This helps ensure we get the complete highlighted text
+    const textToExplain = fullSelectedText.length > text.length ? fullSelectedText : text
+
     setIsLoading(true)
-    setHighlightText(text)
+    setHighlightText(textToExplain)
 
     try {
       if (selection && selection.rangeCount > 0) {
@@ -559,7 +601,7 @@ Please respond in ${language.name} (${language.code}).`
       }
 
       // Get the highlighted text with surrounding context
-      const { text: selectedText, context: textWithContext } = getTextWithContext(text)
+      const { text: selectedText, context: textWithContext } = getTextWithContext(textToExplain)
 
       // Add these debug logs
       console.log("DEBUG - Prompt construction:")
@@ -638,8 +680,13 @@ IMPORTANT: You MUST respond in ${currentLang.name} (${currentLang.code}). The en
         contentElement.contains(range.commonAncestorContainer) &&
         selection.toString().trim().length > 0
       ) {
+        // Get the full text content of the selection
+        const fullSelectedText = selection.toString().trim()
+
         // Only show explanation when user has completed selection within the document
-        explainHighlightedText(selection.toString())
+        if (fullSelectedText.length >= 5) {
+          explainHighlightedText(fullSelectedText)
+        }
       } else {
         setHighlightExplanation(null)
         setHighlightText(null)
@@ -672,10 +719,13 @@ IMPORTANT: You MUST respond in ${currentLang.name} (${currentLang.code}). The en
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            className="fixed bottom-4 right-4 rounded-full h-12 w-12 shadow-lg flex items-center justify-center"
+            className={cn(
+              "fixed rounded-full shadow-lg flex items-center justify-center z-40",
+              isMobile ? "bottom-4 right-4 h-10 w-10" : "bottom-4 right-4 h-12 w-12",
+            )}
             onClick={() => setIsOpen(true)}
           >
-            <Sparkles className="h-5 w-5" />
+            <Sparkles className={isMobile ? "h-4 w-4" : "h-5 w-5"} />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="left">
@@ -687,8 +737,12 @@ IMPORTANT: You MUST respond in ${currentLang.name} (${currentLang.code}). The en
       {isOpen && (
         <div
           className={cn(
-            "fixed bottom-4 right-4 bg-background border rounded-lg shadow-xl flex flex-col z-50 transition-all duration-300 ease-in-out",
-            isExpanded ? "w-[80vw] h-[80vh] max-w-4xl" : "w-96 h-[450px]", // Increased from w-80 h-96
+            "fixed bg-background border rounded-lg shadow-xl flex flex-col z-50 transition-all duration-300 ease-in-out",
+            isExpanded
+              ? "w-[95vw] h-[90vh] max-w-4xl inset-x-0 mx-auto top-[5vh]"
+              : isMobile
+                ? "w-full h-[50vh] bottom-0 left-0 right-0 rounded-b-none border-b-0"
+                : "w-96 h-[450px] bottom-4 right-4",
           )}
         >
           <div className="flex items-center justify-between p-3 border-b">
@@ -788,20 +842,29 @@ IMPORTANT: You MUST respond in ${currentLang.name} (${currentLang.code}). The en
       {/* Highlight explanation popup - now using MarkdownRenderer */}
       {highlightExplanation && (
         <div
-          className="fixed z-50 bg-background border rounded-lg shadow-lg p-4 max-w-md fade-in"
+          className="fixed z-50 bg-background border rounded-lg shadow-lg p-4 fade-in"
           style={{
-            // Calculate position to ensure popup is visible
-            left: Math.min(
-              Math.max(highlightPosition.x, 200), // Ensure at least 200px from left edge
-              window.innerWidth - 220, // Ensure at least 220px from right edge
-            ),
-            top: Math.min(
-              highlightPosition.y + 10,
-              window.innerHeight - 200, // Ensure popup doesn't go too far down
-            ),
-            transform: "translateX(-50%)",
-            maxHeight: "calc(100vh - 100px)", // Limit max height
-            overflowY: "auto", // Add scrolling if content is too tall
+            // On mobile, position at bottom of screen
+            ...(isMobile
+              ? {
+                  left: "50%",
+                  bottom: "0",
+                  transform: "translateX(-50%)",
+                  width: "100%",
+                  maxWidth: "100%",
+                  borderBottomLeftRadius: 0,
+                  borderBottomRightRadius: 0,
+                  maxHeight: "50vh",
+                }
+              : {
+                  // Desktop positioning
+                  left: Math.min(Math.max(highlightPosition.x, 200), window.innerWidth - 220),
+                  top: Math.min(highlightPosition.y + 10, window.innerHeight - 200),
+                  transform: "translateX(-50%)",
+                  maxWidth: "400px",
+                  maxHeight: "calc(100vh - 100px)",
+                }),
+            overflowY: "auto",
           }}
         >
           <div className="flex justify-between items-start mb-2">
@@ -819,8 +882,13 @@ IMPORTANT: You MUST respond in ${currentLang.name} (${currentLang.code}). The en
               >
                 <MessageSquare className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setHighlightExplanation(null)}>
-                <X className="h-3 w-3" />
+              <Button
+                variant={isMobile ? "default" : "ghost"}
+                size="sm"
+                className={isMobile ? "h-6 w-auto px-2" : "h-6 w-6 p-0"}
+                onClick={() => setHighlightExplanation(null)}
+              >
+                {isMobile ? "Close" : <X className="h-3 w-3" />}
               </Button>
             </div>
           </div>

@@ -14,7 +14,7 @@ Smart Read Assistant helps users read, manage, and interact with documents more 
 - **Text Highlighting**: Select text to get instant AI-powered explanations
 - **Document Tools**: Generate summaries and rewrite documents in different styles
 - **Bookmarking**: Save important sections for quick reference
-
+- **Update**: Now optimized for mobile platforms
 
 ## For International Students
 

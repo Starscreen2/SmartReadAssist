@@ -12,6 +12,7 @@ import { SimpleMarkdownRenderer } from "./simple-markdown-renderer"
 import { summarizeText, summarizeLongDocument } from "@/app/actions/summarize"
 import { useDocuments } from "@/context/document-context"
 import { useLanguage } from "@/context/language-context"
+import { useMobile } from "@/hooks/use-mobile"
 
 interface SummaryPanelProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ export function SummaryPanel({ isOpen, onClose }: SummaryPanelProps) {
   const [stage, setStage] = useState("")
   const { toast } = useToast()
   const { language } = useLanguage()
+  const { isMobile } = useMobile()
 
   useEffect(() => {
     // Reset summary when document changes
@@ -135,11 +137,22 @@ ${summary}`,
   return (
     <div
       className={cn(
-        "fixed inset-y-0 right-0 w-96 bg-background border-l shadow-lg z-40 transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full",
+        "fixed border-l border-border bg-background transition-all duration-300 ease-in-out overflow-hidden z-30",
+        isOpen
+          ? isMobile
+            ? "bottom-0 left-0 right-0 h-[60vh] border-t border-l-0 rounded-t-xl"
+            : "right-0 top-0 bottom-0 w-80 border-l"
+          : isMobile
+            ? "bottom-0 left-0 right-0 h-0 border-t border-l-0"
+            : "right-[-320px] top-0 bottom-0 w-80 border-l",
       )}
     >
       <div className="flex flex-col h-full">
+        {isMobile && (
+          <div className="w-full h-6 flex items-center justify-center cursor-grab active:cursor-grabbing">
+            <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+          </div>
+        )}
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-medium flex items-center">
             <FileText className="h-4 w-4 mr-2" />

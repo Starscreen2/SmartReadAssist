@@ -1,19 +1,38 @@
-import * as React from "react"
+"use client"
 
-const MOBILE_BREAKPOINT = 768
+import { useState, useEffect } from "react"
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+export function useMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+  const [isTouch, setIsTouch] = useState(false)
 
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+  useEffect(() => {
+    // Check if we're in a browser environment
+    if (typeof window === "undefined") return
+
+    // Function to check if device is mobile based on screen width
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
     }
-    mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener("change", onChange)
+
+    // Function to check if device has touch capability
+    const checkTouch = () => {
+      setIsTouch("ontouchstart" in window || navigator.maxTouchPoints > 0 || (navigator as any).msMaxTouchPoints > 0)
+    }
+
+    // Initial checks
+    checkMobile()
+    checkTouch()
+
+    // Add resize listener for responsive updates
+    window.addEventListener("resize", checkMobile)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener("resize", checkMobile)
+    }
   }, [])
 
-  return !!isMobile
+  return { isMobile, isTouch }
 }
+

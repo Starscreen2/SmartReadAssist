@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useBookmarks, type Bookmark as BookmarkType } from "@/context/bookmark-context"
 import { useDocuments } from "@/context/document-context"
+import { useMobile } from "@/hooks/use-mobile"
 
 interface BookmarkPanelProps {
   isOpen: boolean
@@ -23,6 +24,7 @@ export function BookmarkPanel({ isOpen, onClose, onJumpToBookmark }: BookmarkPan
   const [editName, setEditName] = useState("")
   const [editNote, setEditNote] = useState("")
   const { toast } = useToast()
+  const { isMobile } = useMobile()
 
   // Add a confirmation dialog for bookmark deletion
   // Around line 20-30, add a new state variable
@@ -84,11 +86,22 @@ export function BookmarkPanel({ isOpen, onClose, onJumpToBookmark }: BookmarkPan
   return (
     <div
       className={cn(
-        "fixed inset-y-0 right-0 w-80 bg-background border-l shadow-lg z-40 transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full",
+        "fixed border-l border-border bg-background transition-all duration-300 ease-in-out overflow-hidden z-30",
+        isOpen
+          ? isMobile
+            ? "bottom-0 left-0 right-0 h-[60vh] border-t border-l-0 rounded-t-xl"
+            : "right-0 top-0 bottom-0 w-80 border-l"
+          : isMobile
+            ? "bottom-0 left-0 right-0 h-0 border-t border-l-0"
+            : "right-[-320px] top-0 bottom-0 w-80 border-l",
       )}
     >
       <div className="flex flex-col h-full">
+        {isMobile && (
+          <div className="w-full h-6 flex items-center justify-center cursor-grab active:cursor-grabbing">
+            <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+          </div>
+        )}
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-medium flex items-center">
             <Bookmark className="h-4 w-4 mr-2" />

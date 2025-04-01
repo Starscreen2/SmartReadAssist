@@ -16,13 +16,11 @@ import {
   BookmarkIcon as BookmarkList,
   Pencil,
   Globe,
-  ChevronsUpDown,
   Check,
+  MoreVertical,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { RippleButton } from "@/components/ui/ripple-button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { SimpleMarkdownRenderer } from "./simple-markdown-renderer"
 import { SummaryPanel } from "./summary-panel"
 import { RewriteDocumentPanel } from "./rewrite-document-panel"
@@ -38,11 +36,13 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/context/language-context"
 import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useMobile } from "@/hooks/use-mobile"
 
 export function DocumentReader() {
   const { currentDocument, setDocuments } = useDocuments()
   const { theme, setTheme } = useTheme()
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, isExpanded } = useSidebar()
   const { addBookmark, getDocumentBookmarks } = useBookmarks()
   const { toast } = useToast()
   const [fontSize, setFontSize] = useState(16)
@@ -67,6 +67,8 @@ export function DocumentReader() {
 
   const { language, setLanguage, languages } = useLanguage()
   const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false)
+
+  const { isMobile, isTouch } = useMobile()
 
   // Debug log to check document changes
   useEffect(() => {
@@ -330,362 +332,184 @@ export function DocumentReader() {
     return "rgba(0, 0, 0, 0.2)"
   }
 
+  useEffect(() => {
+    if (!contentRef.current) return
+
+    let touchStartX = 0
+    let touchEndX = 0
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      touchEndX = e.changedTouches[0].clientX
+      handleSwipe()
+    }
+
+    const handleSwipe = () => {
+      const swipeThreshold = 100
+      // Right swipe (open sidebar)
+      if (touchEndX - touchStartX > swipeThreshold) {
+        toggleSidebar()
+      }
+      // Left swipe (close sidebar if open)
+      else if (touchStartX - touchEndX > swipeThreshold) {
+        toggleSidebar()
+      }
+    }
+
+    const element = contentRef.current
+    element.addEventListener("touchstart", handleTouchStart, { passive: true })
+    element.addEventListener("touchend", handleTouchEnd, { passive: true })
+
+    return () => {
+      element.removeEventListener("touchstart", handleTouchStart)
+      element.removeEventListener("touchend", handleTouchEnd)
+    }
+  }, [toggleSidebar])
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden reader-content">
       {showToolbar && (
         <div className="flex justify-between items-center p-3 border-b border-border w-full bg-background z-10">
           <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm" onClick={toggleSidebar} className="mr-2">
-              <Menu className="h-4 w-4" />
-            </Button>
+            {/* Sidebar Toggle Button */}
+            <button className="p-2 rounded-md hover:bg-accent" onClick={toggleSidebar}>
+              <Menu className="h-5 w-5" />
+            </button>
+
+            {/* Font Size Controls */}
             <div className="flex items-center border rounded-md overflow-hidden">
-              <Button variant="ghost" size="sm" onClick={decreaseFont} className="h-8 px-2 rounded-none border-r">
-                <Minus className="h-3.5 w-3.5" />
-              </Button>
-              <span className="text-sm px-2">{fontSize}px</span>
-              <Button variant="ghost" size="sm" onClick={increaseFont} className="h-8 px-2 rounded-none border-l">
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
+              <button className="p-2 hover:bg-accent border-r" onClick={decreaseFont}>
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="px-2 text-sm">{fontSize}px</span>
+              <button className="p-2 hover:bg-accent border-l" onClick={increaseFont}>
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
           </div>
+
           <div className="flex items-center space-x-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (isEditing) {
-                        // Save the edited content
-                        if (currentDocument) {
-                          setDocuments((prev) =>
-                            prev.map((doc) =>
-                              doc.id === currentDocument.id
-                                ? { ...doc, content: editContent, lastModified: new Date() }
-                                : doc,
-                            ),
-                          )
-                          toast({
-                            title: "Document saved",
-                            description: "Your changes have been saved",
-                          })
-                        }
-                        setIsEditing(false)
-                      } else {
-                        // Enter edit mode
-                        if (currentDocument) {
-                          setEditContent(currentDocument.content)
-                          setIsEditing(true)
-                          toast({
-                            title: "Edit mode",
-                            description: "You can now edit the document",
-                          })
-                        }
-                      }
-                    }}
-                    disabled={!currentDocument}
-                  >
-                    <Pencil className={cn("h-4 w-4", isEditing && "text-primary")} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isEditing ? "Save document" : "Edit document"}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {/* Edit Button */}
+            <button
+              className={cn("p-2 rounded-md hover:bg-accent", isEditing && "bg-accent")}
+              onClick={() => {
+                if (isEditing) {
+                  // Save the edited content
+                  if (currentDocument) {
+                    setDocuments((prev) =>
+                      prev.map((doc) =>
+                        doc.id === currentDocument.id
+                          ? { ...doc, content: editContent, lastModified: new Date() }
+                          : doc,
+                      ),
+                    )
+                    toast({
+                      title: "Document saved",
+                      description: "Your changes have been saved",
+                    })
+                  }
+                  setIsEditing(false)
+                } else {
+                  // Enter edit mode
+                  if (currentDocument) {
+                    setEditContent(currentDocument.content)
+                    setIsEditing(true)
+                    toast({
+                      title: "Edit mode",
+                      description: "You can now edit the document",
+                    })
+                  }
+                }
+              }}
+              disabled={!currentDocument}
+            >
+              <Pencil className={cn("h-5 w-5", isEditing && "text-primary")} />
+            </button>
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <RippleButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleAddBookmark}
-                    disabled={!currentDocument}
-                    color={getRippleColor()}
-                    duration={850}
-                  >
-                    <BookmarkPlus className="h-4 w-4" />
-                  </RippleButton>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Add bookmark</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {/* Add Bookmark Button */}
+            <button className="p-2 rounded-md hover:bg-accent" onClick={handleAddBookmark} disabled={!currentDocument}>
+              <BookmarkPlus className="h-5 w-5" />
+            </button>
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleBookmarkPanel}
-                    className={cn(bookmarkPanelOpen && "bg-accent")}
-                    disabled={!currentDocument}
-                  >
-                    <BookmarkList className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>View bookmarks</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAiToolsInfoOpen(true)}
-                    className={cn((summaryPanelOpen || rewritePanelOpen) && "bg-accent")}
-                  >
-                    <Wand2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>AI Tools</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {/* AI Tools Info Dialog */}
-            <Dialog open={aiToolsInfoOpen} onOpenChange={setAiToolsInfoOpen}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>AI Document Tools</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center">
-                      <AlignJustify className="h-5 w-5 mr-2 text-primary" />
-                      <h3 className="font-medium">Summarize Document</h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-7">
-                      Creates a concise summary of your document, extracting key points and main ideas. Choose between
-                      brief, medium, or detailed summaries.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center">
-                      <Wand2 className="h-5 w-5 mr-2 text-primary" />
-                      <h3 className="font-medium">Rewrite Document</h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-7">
-                      Rewrites your document in different styles: simple, academic, professional, or concise. Improves
-                      clarity while preserving the original meaning.
-                    </p>
-                  </div>
-                </div>
-                <DialogFooter className="flex justify-between">
-                  <Button variant="outline" onClick={() => setAiToolsInfoOpen(false)}>
-                    Cancel
-                  </Button>
-                  <div className="space-x-2">
-                    <Button
-                      onClick={() => {
-                        setAiToolsInfoOpen(false)
-                        toggleSummaryPanel()
-                      }}
-                    >
-                      Summarize
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setAiToolsInfoOpen(false)
-                        toggleRewritePanel()
-                      }}
-                    >
-                      Rewrite
-                    </Button>
-                  </div>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* Language Selector - Completely restructured */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex items-center gap-1"
-                    onClick={() => setLanguagePopoverOpen(!languagePopoverOpen)}
-                  >
-                    <Globe className="h-4 w-4" />
-                    <span className="text-xs hidden sm:inline-block">{language.nativeName}</span>
-                    <Badge variant="outline" className="ml-1 h-5 px-1.5 text-[10px] hidden sm:flex">
-                      {language.code}
-                    </Badge>
-                    <ChevronsUpDown className="h-3 w-3 opacity-50" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="center">
-                  <p>System Language: {language.name}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {/* Separate popover for language selection */}
-            {languagePopoverOpen && (
-              <div className="fixed inset-0 z-50" onClick={() => setLanguagePopoverOpen(false)}>
-                <div
-                  className="absolute right-4 top-16 w-[200px] bg-popover border rounded-md shadow-md p-0 z-50"
-                  onClick={(e) => e.stopPropagation()}
+            {/* Mobile Dropdown Menu */}
+            {isMobile ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="p-2 rounded-md hover:bg-accent">
+                    <MoreVertical className="h-5 w-5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={toggleBookmarkPanel}>
+                    <BookmarkList className="h-4 w-4 mr-2" />
+                    View bookmarks
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setAiToolsInfoOpen(true)}>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    AI Tools
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLanguagePopoverOpen(!languagePopoverOpen)}>
+                    <Globe className="h-4 w-4 mr-2" />
+                    Language: {language.code}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExport}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsInfoOpen(true)}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                {/* View Bookmarks Button */}
+                <button
+                  className={cn("p-2 rounded-md hover:bg-accent", bookmarkPanelOpen && "bg-accent")}
+                  onClick={toggleBookmarkPanel}
+                  disabled={!currentDocument}
                 >
-                  <div className="p-2 border-b">
-                    <Input
-                      placeholder="Search language..."
-                      className="h-8"
-                      onChange={(e) => {
-                        // Add language search functionality
-                        const searchTerm = e.target.value.toLowerCase()
-                        // You would filter languages here based on the search term
-                      }}
-                    />
-                  </div>
-                  <div className="max-h-[300px] overflow-auto py-1">
-                    {languages.map((lang) => (
-                      <div
-                        key={lang.code}
-                        className="flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-accent"
-                        onClick={() => {
-                          setLanguage(lang)
-                          setLanguagePopoverOpen(false)
-                          toast({
-                            title: "System language changed",
-                            description: `All AI responses will now be in ${lang.name}`,
-                          })
-                        }}
-                      >
-                        <Check
-                          className={cn("mr-2 h-4 w-4", language.code === lang.code ? "opacity-100" : "opacity-0")}
-                        />
-                        <span>{lang.nativeName}</span>
-                        <Badge variant="outline" className="ml-auto text-[10px]">
-                          {lang.code}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                  <BookmarkList className="h-5 w-5" />
+                </button>
+
+                {/* AI Tools Button */}
+                <button
+                  className={cn(
+                    "p-2 rounded-md hover:bg-accent",
+                    (summaryPanelOpen || rewritePanelOpen) && "bg-accent",
+                  )}
+                  onClick={() => setAiToolsInfoOpen(true)}
+                >
+                  <Wand2 className="h-5 w-5" />
+                </button>
+
+                {/* Language Button */}
+                <button
+                  className="p-2 rounded-md hover:bg-accent flex items-center gap-1"
+                  onClick={() => setLanguagePopoverOpen(!languagePopoverOpen)}
+                >
+                  <Globe className="h-5 w-5" />
+                  <span className="text-xs hidden sm:inline-block">{language.nativeName}</span>
+                  <Badge variant="outline" className="ml-1 h-5 px-1.5 text-[10px] hidden sm:flex">
+                    {language.code}
+                  </Badge>
+                </button>
+
+                {/* Export Button */}
+                <button className="p-2 rounded-md hover:bg-accent" onClick={handleExport}>
+                  <Download className="h-5 w-5" />
+                </button>
+
+                {/* Settings Button */}
+                <button className="p-2 rounded-md hover:bg-accent" onClick={() => setSettingsInfoOpen(true)}>
+                  <Settings className="h-5 w-5" />
+                </button>
+              </>
             )}
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={handleExport}>
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Export as Markdown</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={() => setSettingsInfoOpen(true)}>
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Settings</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {/* Settings Info Dialog */}
-            <Dialog open={settingsInfoOpen} onOpenChange={setSettingsInfoOpen}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Document Settings</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <h3 className="font-medium">Theme Options</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant="outline"
-                        className="justify-start"
-                        onClick={() => {
-                          setTheme("light")
-                          setSettingsInfoOpen(false)
-                        }}
-                      >
-                        <Sun className="h-4 w-4 mr-2" />
-                        Light
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="justify-start"
-                        onClick={() => {
-                          setTheme("sepia")
-                          setSettingsInfoOpen(false)
-                        }}
-                      >
-                        <Sun className="h-4 w-4 mr-2 opacity-70" />
-                        Sepia
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="justify-start"
-                        onClick={() => {
-                          setTheme("dark")
-                          setSettingsInfoOpen(false)
-                        }}
-                      >
-                        <Moon className="h-4 w-4 mr-2" />
-                        Dark
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="justify-start"
-                        onClick={() => {
-                          setTheme("night")
-                          setSettingsInfoOpen(false)
-                        }}
-                      >
-                        <Moon className="h-4 w-4 mr-2 opacity-70" />
-                        Night
-                      </Button>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Choose a theme that's comfortable for your eyes. Dark themes are great for low-light environments.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="font-medium">Interface Options</h3>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        setShowToolbar(false)
-                        setSettingsInfoOpen(false)
-                      }}
-                    >
-                      <span>Hide toolbar</span>
-                    </Button>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Hide the toolbar for a distraction-free reading experience. Double-click anywhere to show it
-                      again.
-                    </p>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={() => setSettingsInfoOpen(false)}>Close</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
       )}
@@ -693,16 +517,16 @@ export function DocumentReader() {
       <div
         ref={contentRef}
         className={cn(
-          "flex-1 overflow-auto p-8 max-w-3xl mx-auto w-full relative",
-          (summaryPanelOpen || rewritePanelOpen || bookmarkPanelOpen) && "mr-80", // Make room for the panel
+          "flex-1 overflow-auto p-4 md:p-8 max-w-3xl mx-auto w-full relative",
+          (summaryPanelOpen || rewritePanelOpen || bookmarkPanelOpen) && (isMobile ? "mb-64" : "mr-80"), // On mobile, panel appears at bottom
         )}
         onDoubleClick={() => !showToolbar && setShowToolbar(true)}
       >
         {/* Bookmark notification */}
         {showBookmarkNotification && (
-          <div className="fixed top-16 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg z-50 bookmark-notification flex items-center space-x-2">
-            <BookmarkPlus className="h-4 w-4" />
-            <span>{notificationMessage}</span>
+          <div className="fixed top-16 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg z-50 bookmark-notification flex items-center space-x-2 max-w-[90vw]">
+            <BookmarkPlus className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm truncate">{notificationMessage}</span>
           </div>
         )}
 
@@ -711,14 +535,12 @@ export function DocumentReader() {
 
         {/* Rest of the content */}
         {!showToolbar && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity"
+          <button
+            className="absolute top-2 right-2 p-2 rounded-md opacity-0 hover:opacity-100 transition-opacity hover:bg-accent"
             onClick={() => setShowToolbar(true)}
           >
-            <Settings className="h-4 w-4" />
-          </Button>
+            <Settings className="h-5 w-5" />
+          </button>
         )}
 
         {isLoading ? (
@@ -743,10 +565,8 @@ export function DocumentReader() {
                     className="min-h-[calc(100vh-200px)] font-mono text-base resize-none p-4"
                     placeholder="Start writing..."
                   />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-2 right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  <button
+                    className="absolute top-2 right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center"
                     onClick={() => {
                       if (currentDocument) {
                         setDocuments((prev) =>
@@ -778,7 +598,7 @@ export function DocumentReader() {
                     >
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
-                  </Button>
+                  </button>
                 </div>
               ) : (
                 <SimpleMarkdownRenderer
@@ -837,6 +657,188 @@ export function DocumentReader() {
               Cancel
             </Button>
             <Button onClick={handleSaveBookmark}>Save Bookmark</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Language Popover */}
+      {languagePopoverOpen && (
+        <div className="fixed inset-0 z-50" onClick={() => setLanguagePopoverOpen(false)}>
+          <div
+            className="absolute right-4 top-16 w-[200px] bg-popover border rounded-md shadow-md p-0 z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-2 border-b">
+              <Input
+                placeholder="Search language..."
+                className="h-8"
+                onChange={(e) => {
+                  // Add language search functionality
+                  const searchTerm = e.target.value.toLowerCase()
+                  // You would filter languages here based on the search term
+                }}
+              />
+            </div>
+            <div className="max-h-[300px] overflow-auto py-1">
+              {languages.map((lang) => (
+                <div
+                  key={lang.code}
+                  className="flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-accent"
+                  onClick={() => {
+                    setLanguage(lang)
+                    setLanguagePopoverOpen(false)
+                    toast({
+                      title: "System language changed",
+                      description: `All AI responses will now be in ${lang.name}`,
+                    })
+                  }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", language.code === lang.code ? "opacity-100" : "opacity-0")} />
+                  <span>{lang.nativeName}</span>
+                  <Badge variant="outline" className="ml-auto text-[10px]">
+                    {lang.code}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Tools Info Dialog */}
+      <Dialog open={aiToolsInfoOpen} onOpenChange={setAiToolsInfoOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>AI Document Tools</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <AlignJustify className="h-5 w-5 mr-2 text-primary" />
+                <h3 className="font-medium">Summarize Document</h3>
+              </div>
+              <p className="text-sm text-muted-foreground pl-7">
+                Creates a concise summary of your document, extracting key points and main ideas. Choose between brief,
+                medium, or detailed summaries.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Wand2 className="h-5 w-5 mr-2 text-primary" />
+                <h3 className="font-medium">Rewrite Document</h3>
+              </div>
+              <p className="text-sm text-muted-foreground pl-7">
+                Rewrites your document in different styles: simple, academic, professional, or concise. Improves clarity
+                while preserving the original meaning.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => setAiToolsInfoOpen(false)}>
+              Cancel
+            </Button>
+            <div className="space-x-2">
+              <Button
+                onClick={() => {
+                  setAiToolsInfoOpen(false)
+                  toggleSummaryPanel()
+                }}
+              >
+                Summarize
+              </Button>
+              <Button
+                onClick={() => {
+                  setAiToolsInfoOpen(false)
+                  toggleRewritePanel()
+                }}
+              >
+                Rewrite
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings Info Dialog */}
+      <Dialog open={settingsInfoOpen} onOpenChange={setSettingsInfoOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Document Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <h3 className="font-medium">Theme Options</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    setTheme("light")
+                    setSettingsInfoOpen(false)
+                  }}
+                >
+                  <Sun className="h-4 w-4 mr-2" />
+                  Light
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    setTheme("sepia")
+                    setSettingsInfoOpen(false)
+                  }}
+                >
+                  <Sun className="h-4 w-4 mr-2 opacity-70" />
+                  Sepia
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    setTheme("dark")
+                    setSettingsInfoOpen(false)
+                  }}
+                >
+                  <Moon className="h-4 w-4 mr-2" />
+                  Dark
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    setTheme("night")
+                    setSettingsInfoOpen(false)
+                  }}
+                >
+                  <Moon className="h-4 w-4 mr-2 opacity-70" />
+                  Night
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Choose a theme that's comfortable for your eyes. Dark themes are great for low-light environments.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-medium">Interface Options</h3>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowToolbar(false)
+                  setSettingsInfoOpen(false)
+                }}
+              >
+                <span>Hide toolbar</span>
+              </Button>
+              <p className="text-sm text-muted-foreground mt-2">
+                Hide the toolbar for a distraction-free reading experience. Double-click anywhere to show it again.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setSettingsInfoOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

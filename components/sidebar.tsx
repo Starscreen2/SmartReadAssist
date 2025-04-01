@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import {
   PlusCircle,
   File,
@@ -50,6 +50,18 @@ export function Sidebar() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Detect mobile devices
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
 
   const filteredDocuments = documents.filter((doc) => doc.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
@@ -213,10 +225,13 @@ Start writing your document here...`,
 
   return (
     <TooltipProvider>
+      {isMobile && isExpanded && (
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={toggleSidebar} aria-hidden="true" />
+      )}
       <div
         className={cn(
           "h-full flex flex-col bg-sidebar sidebar-transition border-r border-border",
-          isExpanded ? "w-64" : "w-16",
+          isExpanded ? (isMobile ? "w-[85vw] max-w-xs fixed left-0 top-0 bottom-0 z-50" : "w-64") : "w-16",
         )}
       >
         <div
@@ -420,6 +435,7 @@ Start writing your document here...`,
                           <div
                             className={`flex items-center flex-1 min-w-0 mr-2 ${selectedDocument === doc.id ? "font-medium" : ""}`}
                             onClick={() => handleDocumentSelect(doc.id)}
+                            style={{ minHeight: isMobile ? "44px" : "auto" }} // Larger touch target on mobile
                           >
                             <File
                               className={cn(
@@ -448,25 +464,25 @@ Start writing your document here...`,
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0"
+                              className={isMobile ? "h-9 w-9 p-0" : "h-7 w-7 p-0"}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setIsRenaming(doc.id)
                                 setNewName(doc.name)
                               }}
                             >
-                              <Edit className="h-3.5 w-3.5" />
+                              <Edit className={isMobile ? "h-4 w-4" : "h-3.5 w-3.5"} />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0"
+                              className={isMobile ? "h-9 w-9 p-0" : "h-7 w-7 p-0"}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleDeleteDocument(doc.id)
                               }}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className={isMobile ? "h-4 w-4" : "h-3.5 w-3.5"} />
                             </Button>
                           </div>
                         </div>
