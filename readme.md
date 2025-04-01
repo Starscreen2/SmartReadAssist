@@ -1,83 +1,45 @@
-A modern document reading application with AI-powered assistance for enhanced comprehension and productivity.
+A modern document reading application with AI-powered assistance for enhanced comprehension and productivity, especially designed for international students whose English may not be their first language.
 
-Here is the website:
-https://smart-read-assist.vercel.app/
+Website: [https://smart-read-assist.vercel.app/](https://smart-read-assist.vercel.app/)
 
 ## Overview
 
-Smart Read Assistant is a web application that helps users read, manage, and interact with their documents more effectively. It combines a clean reading interface with AI-powered tools to summarize, explain, and rewrite content.
+Smart Read Assistant helps users read, manage, and interact with documents more effectively through AI-powered tools that summarize, explain, and rewrite content in multiple languages.
 
 ## Key Features
 
-- **Document Management**: Upload, create, edit, and organize text documents and DOCX files
-- **Distraction-Free Reading**: Clean, customizable reading interface with adjustable font sizes and themes
-- **AI Assistant**: Ask questions about your document and get contextual answers
+- **Multilingual Support**: Get explanations and summaries in 25+ languages including Chinese, Spanish, Arabic, and more
+- **Document Management**: Upload, create, and organize text documents and DOCX files
+- **AI Assistant**: Ask questions about your document and get contextual answers in your preferred language
 - **Text Highlighting**: Select text to get instant AI-powered explanations
-
-## Document Tools:
-
-- Generate summaries of varying lengths (brief, medium, detailed)
-- Rewrite documents in different styles (simple, academic, professional, concise)
+- **Document Tools**: Generate summaries and rewrite documents in different styles
+- **Bookmarking**: Save important sections for quick reference
 
 
+## For International Students
 
-- **Bookmarking**: Save and organize important sections of documents
-- **Search**: Quickly find documents in your library
+- Switch between 25+ languages for AI responses
+- Get simplified explanations of complex academic concepts
+- Rewrite documents in simpler language for better comprehension
+- Highlight unfamiliar terms to get instant explanations in your native language
+- Practice reading comprehension with AI-assisted summaries
 
 
 ## Technology Stack
 
-- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
-- **UI Components**: shadcn/ui component library
-- **AI Integration**: Google Gemini API for text generation and comprehension
-- **Document Processing**: Markdown rendering, DOCX extraction
+- Next.js, React, TypeScript, Tailwind CSS
+- shadcn/ui component library
+- Google Gemini API for multilingual text generation
+- Markdown rendering, DOCX extraction
 
 
 ## Getting Started
 
 1. Clone the repository
-2. Install dependencies with `npm install`
-3. Set up environment variables:
-
-1. `GEMINI_API_KEY`: Your Google Gemini API key
-
-
-
-4. Run the development server with `npm run dev`
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-
-## Usage
-
-- **Create Documents**: Click "New" in the sidebar to create a new document
-- **Upload Documents**: Use the "Upload" button to add existing documents
-- **Read & Edit**: Select a document to view it, and use the edit button to make changes
-- **AI Features**:
-
-- Click the AI Assistant button in the bottom right to ask questions
-- Highlight text to get instant explanations
-- Use the AI Tools menu to summarize or rewrite documents
-
-
-
-- **Bookmarks**: Add bookmarks to save important sections for quick reference
-
-
-## Project Structure
-
-- `/app`: Next.js app router and page components
-- `/components`: React components including document reader, sidebar, and AI assistant
-- `/context`: React context providers for documents, bookmarks, and UI state
-- `/lib`: Utility functions and document processing logic
-- `/public`: Static assets
-
-
-## Future Enhancements
-
-- PDF support with text extraction
-- Collaborative editing and sharing
-- Advanced search with content indexing
-- Mobile application
+2. Install dependencies: `npm install`
+3. Set up environment variable: `GEMINI_API_KEY`
+4. Run the development server: `npm run dev`
+5. Open [http://localhost:3000](http://localhost:3000)
 
 
 ## License
