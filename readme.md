@@ -31,12 +31,7 @@ A modern document reading application with AI-powered assistance, especially des
 
 ## Getting Started
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up environment variable: `GEMINI_API_KEY`
-4. Run the development server: `npm run dev`
-5. Open [http://localhost:3000](http://localhost:3000)
-
+https://smart-read-assist.vercel.app/
 
 ## License
 
