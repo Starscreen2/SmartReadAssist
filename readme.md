@@ -1,17 +1,13 @@
-A modern document reading application with AI-powered assistance for enhanced comprehension and productivity, especially designed for international students whose English may not be their first language.
-
-Website: [https://smart-read-assist.vercel.app/](https://smart-read-assist.vercel.app/)
-
 ## Overview
 
-Smart Read Assistant helps users read, manage, and interact with documents more effectively through AI-powered tools that summarize, explain, and rewrite content in multiple languages.
+A modern document reading application with AI-powered assistance, especially designed for international students whose English may not be their first language.
 
 ## Key Features
 
+- **Text Highlighting**: Select text to get instant AI-powered explanations
 - **Multilingual Support**: Get explanations and summaries in 25+ languages including Chinese, Spanish, Arabic, and more
 - **Document Management**: Upload, create, and organize text documents and DOCX files
 - **AI Assistant**: Ask questions about your document and get contextual answers in your preferred language
-- **Text Highlighting**: Select text to get instant AI-powered explanations
 - **Document Tools**: Generate summaries and rewrite documents in different styles
 - **Bookmarking**: Save important sections for quick reference
 - **Update**: Now optimized for mobile platforms
